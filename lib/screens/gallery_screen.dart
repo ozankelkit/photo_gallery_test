@@ -1,6 +1,5 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:photo_manager/photo_manager.dart';
+import '../data/sample_images.dart';
 import '../services/photo_service.dart';
 import 'photo_detail_screen.dart';
 
@@ -13,9 +12,8 @@ class GalleryScreen extends StatefulWidget {
 
 class _GalleryScreenState extends State<GalleryScreen> {
   final PhotoService _photoService = PhotoService();
-  List<AssetEntity> _photos = [];
+  List<SampleImage> _photos = [];
   bool _isLoading = true;
-  bool _hasPermission = false;
 
   @override
   void initState() {
@@ -25,31 +23,15 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   Future<void> _loadPhotos() async {
     setState(() => _isLoading = true);
-    try {
-      final hasPermission = await _photoService.requestPermission();
-      if (hasPermission) {
-        final photos = await _photoService.getPhotosWithPagination(
-          pageSize: 100,
-        );
-        setState(() {
-          _photos = photos;
-          _hasPermission = true;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _hasPermission = false;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fotoğraflar yüklenirken hata: $e')),
-        );
-      }
-    }
+
+    // Simulate loading delay
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final photos = _photoService.getAllPhotos();
+    setState(() {
+      _photos = photos;
+      _isLoading = false;
+    });
   }
 
   @override
@@ -58,7 +40,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text(
-          'Fotoğraf Galerim',
+          'Sinem ve İlke',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
@@ -71,47 +53,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : !_hasPermission
-              ? _buildPermissionDenied()
               : _photos.isEmpty
               ? _buildEmptyState()
               : _buildPhotoGrid(),
-    );
-  }
-
-  Widget _buildPermissionDenied() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.lock_outline, size: 100, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'Galeri Erişimi Gerekli',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Fotoğraflarınızı görebilmek için galeri erişim izni vermeniz gerekiyor',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: Colors.grey[500]),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _loadPhotos,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text('İzin Ver'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -136,7 +80,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Cihazınızda herhangi bir fotoğraf bulunamadı',
+            'Henüz hiç fotoğraf yok',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16, color: Colors.grey[500]),
           ),
@@ -152,17 +96,17 @@ class _GalleryScreenState extends State<GalleryScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: 4,
         mainAxisSpacing: 4,
+        childAspectRatio: 1,
       ),
       itemCount: _photos.length,
       itemBuilder: (context, index) {
         final photo = _photos[index];
-        return _buildPhotoTile(photo);
+        return _buildPhotoTile(photo, index);
       },
     );
   }
 
-  Widget _buildPhotoTile(AssetEntity photo) {
-    final index = _photos.indexOf(photo);
+  Widget _buildPhotoTile(SampleImage photo, int index) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -170,7 +114,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
           MaterialPageRoute(
             builder:
                 (context) =>
-                    PhotoDetailScreen(assets: _photos, initialIndex: index),
+                    PhotoDetailScreen(photos: _photos, initialIndex: index),
           ),
         );
       },
@@ -178,34 +122,17 @@ class _GalleryScreenState extends State<GalleryScreen> {
         tag: '${photo.id}_detail',
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: FutureBuilder<Uint8List?>(
-            future: photo.thumbnailDataWithSize(
-              const ThumbnailSize.square(200),
-            ),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Container(
-                  color: Colors.grey[200],
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                );
-              }
-
-              if (snapshot.hasError ||
-                  !snapshot.hasData ||
-                  snapshot.data == null) {
-                return Container(
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.broken_image, color: Colors.grey),
-                );
-              }
-
-              return Image.memory(
-                snapshot.data!,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
+          child: Image.asset(
+            photo.assetPath,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey[300],
+                child: const Icon(
+                  Icons.broken_image,
+                  size: 50,
+                  color: Colors.grey,
+                ),
               );
             },
           ),
